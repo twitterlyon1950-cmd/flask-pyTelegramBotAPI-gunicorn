@@ -14,9 +14,14 @@ user_steps = {}
 
 
 def send_message(chat_id, text, reply_markup=None):
-    payload = {"chat_id": chat_id, "text": text}
+    payload = {
+        "chat_id": chat_id,
+        "text": text
+    }
+
     if reply_markup:
         payload["reply_markup"] = reply_markup
+
     requests.post(f"{API}/sendMessage", json=payload)
 
 
@@ -28,15 +33,27 @@ def edit_message(chat_id, message_id, text):
     })
 
 
+def answer_callback(callback_id):
+    requests.post(f"{API}/answerCallbackQuery", json={
+        "callback_query_id": callback_id
+    })
+
+
 def create_unique_invite_link():
+    if not CHANNEL_ID:
+        raise Exception("CHANNEL_ID manquant dans Render.")
+
     response = requests.post(f"{API}/createChatInviteLink", json={
         "chat_id": CHANNEL_ID,
         "member_limit": 1,
         "name": "Invitation adhésion validée"
     })
+
     data = response.json()
+
     if not data.get("ok"):
         raise Exception(data)
+
     return data["result"]["invite_link"]
 
 
@@ -54,7 +71,8 @@ def webhook():
         handle_callback(data["callback_query"])
         return "OK", 200
 
-    message = data.get("message")
+    message = data.get("message") or data.get("channel_post")
+
     if not message:
         return "OK", 200
 
@@ -63,14 +81,18 @@ def webhook():
     chat_type = chat["type"]
     text = message.get("text", "")
     user = message.get("from", {})
-    user_id = user["id"]
+    user_id = user.get("id")
+
+    if chat_type == "channel":
+        print("CHANNEL_ID =", chat_id, flush=True)
+        return "OK", 200
 
     if text == "/connect" and chat_type in ["group", "supergroup"]:
         send_message(chat_id, f"✅ Groupe détecté.\n\nADMIN_GROUP_ID :\n{chat_id}")
         return "OK", 200
 
     if text == "/channelid":
-        send_message(chat_id, f"ID de ce chat/canal :\n{chat_id}")
+        send_message(chat_id, f"ID de ce chat :\n{chat_id}")
         return "OK", 200
 
     if chat_type != "private":
@@ -146,6 +168,8 @@ ID Telegram : {user_id}
         send_message(chat_id, "✅ Merci ! Votre demande a bien été transmise aux administrateurs.")
         del user_steps[user_id]
 
+        return "OK", 200
+
     return "OK", 200
 
 
@@ -165,6 +189,7 @@ def handle_callback(callback):
     if action == "approve":
         try:
             invite_link = create_unique_invite_link()
+
             send_message(user_id, f"""✅ Votre demande a été validée.
 
 Voici votre lien d’accès unique au canal Lyon 1950 :
@@ -172,18 +197,34 @@ Voici votre lien d’accès unique au canal Lyon 1950 :
 {invite_link}
 
 ⚠️ Ce lien est personnel et utilisable une seule fois.""")
-            edit_message(chat_id, message_id, original_text + f"\n\n🟢 VALIDÉ par {admin_name}")
+
+            edit_message(
+                chat_id,
+                message_id,
+                original_text + f"\n\n🟢 VALIDÉ par {admin_name}"
+            )
+
         except Exception as e:
             send_message(chat_id, f"❌ Erreur lors de la création du lien :\n{e}")
 
     if action == "reject":
-        send_message(user_id, "❌ Votre demande d’accès au canal Lyon 1950 n’a pas été validée.")
-        edit_message(chat_id, message_id, original_text + f"\n\n🔴 REFUSÉ par {admin_name}")
+        send_message(
+            user_id,
+            "❌ Votre demande d’accès au canal Lyon 1950 n’a pas été validée."
+        )
 
-    requests.post(f"{API}/answerCallbackQuery", json={
-        "callback_query_id": callback["id"]
-    })
+        edit_message(
+            chat_id,
+            message_id,
+            original_text + f"\n\n🔴 REFUSÉ par {admin_name}"
+        )
+
+    answer_callback(callback["id"])
 
 
-requests.get(f"{API}/setWebhook", params={"url": f"{PUBLIC_URL}/webhook"})
+requests.get(f"{API}/setWebhook", params={
+    "url": f"{PUBLIC_URL}/webhook",
+    "allowed_updates": ["message", "channel_post", "callback_query"]
+})
+
 print("Webhook configuré", flush=True)
