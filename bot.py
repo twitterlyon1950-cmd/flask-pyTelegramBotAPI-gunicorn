@@ -11,37 +11,40 @@ app = Flask(__name__)
 
 user_steps = {}
 
-@app.route("/", methods=["GET"])
+@app.route("/")
 def home():
     return "Bot actif ✅"
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    update = telebot.types.Update.de_json(request.get_data().decode("utf-8"))
-    bot.process_new_updates([update])
-    return "OK", 200
+    try:
+        json_data = request.get_data().decode("utf-8")
+        print("UPDATE REÇU :", json_data)
+        update = telebot.types.Update.de_json(json_data)
+        bot.process_new_updates([update])
+        return "OK", 200
+    except Exception as e:
+        print("ERREUR WEBHOOK :", e)
+        return "ERROR", 500
 
 @bot.message_handler(commands=["start"])
 def start(message):
-    if message.chat.type != "private":
-        return
-
+    print("START REÇU")
     user_steps[message.from_user.id] = {"step": "nom"}
-    bot.send_message(
-        message.chat.id,
-        "👋 Bonjour !\n\nPour demander l’accès au canal, réponds aux questions.\n\nQuel est ton NOM ?"
-    )
+    bot.send_message(message.chat.id, "👋 Bonjour !\n\nQuel est ton NOM ?")
 
 @bot.message_handler(commands=["connect"])
 def connect(message):
-    if message.chat.type in ["group", "supergroup"]:
-        bot.reply_to(
-            message,
-            f"✅ Groupe détecté.\n\nCopie cet ID dans Render comme ADMIN_GROUP_ID :\n{message.chat.id}"
-        )
+    print("CONNECT REÇU")
+    bot.reply_to(message, f"✅ Groupe détecté.\n\nADMIN_GROUP_ID :\n{message.chat.id}")
 
-@bot.message_handler(func=lambda message: message.chat.type == "private")
-def handle_private(message):
+@bot.message_handler(func=lambda message: True)
+def handle_message(message):
+    print("MESSAGE REÇU :", message.text)
+
+    if message.chat.type != "private":
+        return
+
     user_id = message.from_user.id
 
     if user_id not in user_steps:
@@ -84,11 +87,10 @@ ID Telegram : {user_id}
 
         if ADMIN_GROUP_ID:
             bot.send_message(ADMIN_GROUP_ID, admin_message)
-            bot.send_message(message.chat.id, "✅ Merci ! Ta demande a bien été transmise aux administrateurs.")
-        else:
-            bot.send_message(message.chat.id, "✅ Demande reçue, mais le groupe admin n’est pas encore connecté.")
 
+        bot.send_message(message.chat.id, "✅ Merci ! Ta demande a bien été transmise aux administrateurs.")
         del user_steps[user_id]
 
 bot.remove_webhook()
 bot.set_webhook(url=f"{PUBLIC_URL}/webhook")
+print("Webhook configuré :", f"{PUBLIC_URL}/webhook")
