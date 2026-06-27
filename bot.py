@@ -14,14 +14,9 @@ user_steps = {}
 
 
 def send_message(chat_id, text, reply_markup=None):
-    payload = {
-        "chat_id": chat_id,
-        "text": text
-    }
-
+    payload = {"chat_id": chat_id, "text": text}
     if reply_markup:
         payload["reply_markup"] = reply_markup
-
     requests.post(f"{API}/sendMessage", json=payload)
 
 
@@ -39,22 +34,32 @@ def answer_callback(callback_id):
     })
 
 
-def create_unique_invite_link():
+def approve_join_request(user_id):
     if not CHANNEL_ID:
         raise Exception("CHANNEL_ID manquant dans Render.")
 
-    response = requests.post(f"{API}/createChatInviteLink", json={
+    response = requests.post(f"{API}/approveChatJoinRequest", json={
         "chat_id": CHANNEL_ID,
-        "member_limit": 1,
-        "name": "Invitation adhésion validée"
+        "user_id": user_id
     })
 
     data = response.json()
-
     if not data.get("ok"):
         raise Exception(data)
 
-    return data["result"]["invite_link"]
+
+def decline_join_request(user_id):
+    if not CHANNEL_ID:
+        raise Exception("CHANNEL_ID manquant dans Render.")
+
+    response = requests.post(f"{API}/declineChatJoinRequest", json={
+        "chat_id": CHANNEL_ID,
+        "user_id": user_id
+    })
+
+    data = response.json()
+    if not data.get("ok"):
+        raise Exception(data)
 
 
 @app.route("/")
@@ -188,15 +193,11 @@ def handle_callback(callback):
 
     if action == "approve":
         try:
-            invite_link = create_unique_invite_link()
+            approve_join_request(user_id)
 
-            send_message(user_id, f"""✅ Votre demande a été validée.
+            send_message(user_id, """✅ Votre demande a été validée.
 
-Voici votre lien d’accès unique au canal Lyon 1950 :
-
-{invite_link}
-
-⚠️ Ce lien est personnel et utilisable une seule fois.""")
+Vous avez maintenant accès au canal Telegram Lyon 1950.""")
 
             edit_message(
                 chat_id,
@@ -205,19 +206,25 @@ Voici votre lien d’accès unique au canal Lyon 1950 :
             )
 
         except Exception as e:
-            send_message(chat_id, f"❌ Erreur lors de la création du lien :\n{e}")
+            send_message(chat_id, f"❌ Erreur lors de la validation :\n{e}")
 
     if action == "reject":
-        send_message(
-            user_id,
-            "❌ Votre demande d’accès au canal Lyon 1950 n’a pas été validée."
-        )
+        try:
+            decline_join_request(user_id)
 
-        edit_message(
-            chat_id,
-            message_id,
-            original_text + f"\n\n🔴 REFUSÉ par {admin_name}"
-        )
+            send_message(
+                user_id,
+                "❌ Votre demande d’accès au canal Lyon 1950 n’a pas été validée."
+            )
+
+            edit_message(
+                chat_id,
+                message_id,
+                original_text + f"\n\n🔴 REFUSÉ par {admin_name}"
+            )
+
+        except Exception as e:
+            send_message(chat_id, f"❌ Erreur lors du refus :\n{e}")
 
     answer_callback(callback["id"])
 
