@@ -113,7 +113,7 @@ Afin de vérifier votre adhésion, merci de renseigner :
 
 • votre nom
 • votre prénom
-• votre numéro d'adhésion
+• votre numéro de carte de membre 2026/2027
 
 ⏳ Votre demande sera examinée par un administrateur. Une fois validée, vous recevrez l'accès au canal.
 
@@ -138,7 +138,7 @@ Afin de vérifier votre adhésion, merci de renseigner :
     if step == "prenom":
         user_steps[user_id]["prenom"] = text.strip()
         user_steps[user_id]["step"] = "numero"
-        send_message(chat_id, "Quel est votre NUMÉRO D’ADHÉSION ?")
+        send_message(chat_id, "Quel est votre NUMÉRO DE CARTE DE MEMBRE 2026/2027 ?")
         return "OK", 200
 
     if step == "numero":
