@@ -6,6 +6,7 @@ TOKEN = os.environ["BOT_TOKEN"]
 PUBLIC_URL = os.environ["PUBLIC_URL"]
 ADMIN_GROUP_ID = os.environ.get("ADMIN_GROUP_ID")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
+APPROVAL_LINK = os.environ.get("APPROVAL_LINK")
 
 API = f"https://api.telegram.org/bot{TOKEN}"
 app = Flask(__name__)
@@ -113,7 +114,7 @@ Afin de vérifier votre adhésion, merci de renseigner :
 
 • votre nom
 • votre prénom
-• votre numéro de carte de membre 2026/2027
+• votre numéro d'adhésion
 
 ⏳ Votre demande sera examinée par un administrateur. Une fois validée, vous recevrez l'accès au canal.
 
@@ -138,7 +139,7 @@ Afin de vérifier votre adhésion, merci de renseigner :
     if step == "prenom":
         user_steps[user_id]["prenom"] = text.strip()
         user_steps[user_id]["step"] = "numero"
-        send_message(chat_id, "Quel est votre NUMÉRO DE CARTE DE MEMBRE 2026/2027 ?")
+        send_message(chat_id, "Quel est votre NUMÉRO D’ADHÉSION ?")
         return "OK", 200
 
     if step == "numero":
@@ -170,9 +171,19 @@ ID Telegram : {user_id}
         if ADMIN_GROUP_ID:
             send_message(ADMIN_GROUP_ID, admin_message, keyboard)
 
-        send_message(chat_id, "✅ Merci ! Votre demande a bien été transmise aux administrateurs.")
-        del user_steps[user_id]
+        if APPROVAL_LINK:
+            send_message(chat_id, f"""✅ Merci ! Votre demande a bien été transmise aux administrateurs.
 
+Dernière étape obligatoire :
+cliquez sur le lien ci-dessous pour envoyer votre demande d’accès au canal Telegram Lyon 1950.
+
+{APPROVAL_LINK}
+
+⚠️ Sans cette demande d’accès au canal, les administrateurs ne pourront pas vous valider.""")
+        else:
+            send_message(chat_id, "✅ Merci ! Votre demande a bien été transmise aux administrateurs.")
+
+        del user_steps[user_id]
         return "OK", 200
 
     return "OK", 200
@@ -199,11 +210,7 @@ def handle_callback(callback):
 
 Vous avez maintenant accès au canal Telegram Lyon 1950.""")
 
-            edit_message(
-                chat_id,
-                message_id,
-                original_text + f"\n\n🟢 VALIDÉ par {admin_name}"
-            )
+            edit_message(chat_id, message_id, original_text + f"\n\n🟢 VALIDÉ par {admin_name}")
 
         except Exception as e:
             send_message(chat_id, f"❌ Erreur lors de la validation :\n{e}")
@@ -212,16 +219,9 @@ Vous avez maintenant accès au canal Telegram Lyon 1950.""")
         try:
             decline_join_request(user_id)
 
-            send_message(
-                user_id,
-                "❌ Votre demande d’accès au canal Lyon 1950 n’a pas été validée."
-            )
+            send_message(user_id, "❌ Votre demande d’accès au canal Lyon 1950 n’a pas été validée.")
 
-            edit_message(
-                chat_id,
-                message_id,
-                original_text + f"\n\n🔴 REFUSÉ par {admin_name}"
-            )
+            edit_message(chat_id, message_id, original_text + f"\n\n🔴 REFUSÉ par {admin_name}")
 
         except Exception as e:
             send_message(chat_id, f"❌ Erreur lors du refus :\n{e}")
